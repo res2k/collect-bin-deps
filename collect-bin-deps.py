@@ -53,8 +53,8 @@ parser = argparse.ArgumentParser(description='Collect binary dependencies.', fro
 parser.add_argument('-t', '--target', action='append', metavar='BINARY', help='target binary to scan', required=True)
 parser.add_argument('dependency_dir', metavar='DIR', nargs='*', help='directory to check for dependencies')
 parser.add_argument('-o', '--outdir', metavar='OUTPUT-DIR', dest='output_dir', help='override output directory (default: directory of target binary)')
-parser.add_argument('-r', '--recursive', action=ActionNoYes, default=True, help='whether to scan recursively for depencies (default: yes)')
-parser.add_argument('-d', '--debug-info', action=ActionNoYes, default=True, help='whether to collect debug info files (default: yes)')
+parser.add_argument('--recursive', action=ActionNoYes, default=True, help='whether to scan recursively for depencies (default: yes)')
+parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whether to collect debug info files (default: yes)')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
 parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
 
