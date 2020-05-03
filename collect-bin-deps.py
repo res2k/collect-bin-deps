@@ -137,7 +137,7 @@ for target in args.target:
       print(os.path.normpath(full_path))
   else:
     # Copy files to output dir
-    output_dir = os.path.normpath(args.outdir if args.outdir else os.path.dirname(target))
+    output_dir = os.path.normpath(args.output_dir if args.output_dir else os.path.dirname(target))
     for norm_base, full_path in known_dependencies.items():
       if not full_path: continue  # dependency we haven't found
       dest_path = os.path.join(output_dir, os.path.basename(full_path))
