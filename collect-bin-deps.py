@@ -83,8 +83,22 @@ def search_dependency(dependency):
       return full_path
   return None
 
+
+# "Copy" function: print only source path
+def _copy_print(src_path, dest_path):
+  print(os.path.normpath(src_path))
+
+# Copy function: skip existing destination files
+def _copy_skip_existing(src_path, dest_path):
+  if os.path.exists(dest_path):
+    verbose_print("Skipping existing:", dest_path)
+  else:
+    verbose_print("Copying:", src_path, "->", dest_path)
+    shutil.copy2(full_path, dest_path)
+
+
 # Copy a dependency. Takes care of debug files.
-def copy_dependency(src, dst):
+def copy_dependency(src, dst, copy_func):
   copy_list = [(src, dst)]
 
   # Locate possible debug files
@@ -98,11 +112,15 @@ def copy_dependency(src, dst):
           copy_list.append((debug_cand, os.path.join(dst_dir, os.path.basename(debug_cand))))
 
   for src_path, dest_path in copy_list:
-    if os.path.exists(dest_path):
-      verbose_print("Skipping existing:", dest_path)
-    else:
-      verbose_print("Copying:", src_path, "->", dest_path)
-      shutil.copy2(full_path, dest_path)
+    copy_func(src_path, dest_path)
+
+# Choose "copy" function
+if args.list_only:
+  # Print list of found dependencies
+  copy_func = _copy_print
+else:
+  copy_func = _copy_skip_existing
+  # Copy files to output dir
 
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
@@ -130,15 +148,8 @@ for target in args.target:
       else:
         verbose_print(" Not found:", norm_name)
 
-  if args.list_only:
-    # Print list of found dependencies
-    for norm_base, full_path in known_dependencies.items():
-      if not full_path: continue # dependency we haven't found
-      print(os.path.normpath(full_path))
-  else:
-    # Copy files to output dir
-    output_dir = os.path.normpath(args.output_dir if args.output_dir else os.path.dirname(target))
-    for norm_base, full_path in known_dependencies.items():
-      if not full_path: continue  # dependency we haven't found
-      dest_path = os.path.join(output_dir, os.path.basename(full_path))
-      copy_dependency(full_path, dest_path)
+  output_dir = os.path.normpath(args.output_dir if args.output_dir else os.path.dirname(target))
+  for norm_base, full_path in known_dependencies.items():
+    if not full_path: continue  # dependency we haven't found
+    dest_path = os.path.join(output_dir, os.path.basename(full_path))
+    copy_dependency(full_path, dest_path, copy_func)
