@@ -23,6 +23,7 @@
 #     3. This notice may not be removed or altered from any source distribution.
 
 import argparse
+import filecmp
 import os
 import pefile
 import shutil
@@ -55,6 +56,8 @@ parser.add_argument('dependency_dir', metavar='DIR', nargs='*', help='directory 
 parser.add_argument('-o', '--outdir', metavar='OUTPUT-DIR', dest='output_dir', help='override output directory (default: directory of target binary)')
 parser.add_argument('--recursive', action=ActionNoYes, default=True, help='whether to scan recursively for depencies (default: yes)')
 parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whether to collect debug info files (default: yes)')
+parser.add_argument('-e', '--existing', choices=['skip', 's', 'overwrite', 'o', 'overwrite-different', 'od', 'overwrite-older', 'oo'],
+                    default='skip', help='how to handle existing destination files')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
 parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
 
@@ -96,6 +99,38 @@ def _copy_skip_existing(src_path, dest_path):
     verbose_print("Copying:", src_path, "->", dest_path)
     shutil.copy2(full_path, dest_path)
 
+# Copy function: overwrite existing destination files
+def _copy_overwrite(src_path, dest_path):
+  verbose_print("Copying:", src_path, "->", dest_path)
+  shutil.copy2(full_path, dest_path)
+
+# Copy function: overwrite destination files if stat differs from source
+def _copy_overwrite_different(src_path, dest_path):
+  do_skip = False
+  if os.path.exists(dest_path) and filecmp.cmp(src_path, dest_path):
+    # filecmp doesn't consider timestamps, but we want to
+    src_stat = os.stat(src_path)
+    dst_stat = os.stat(dest_path)
+    do_skip = dst_stat.st_mtime_ns == src_stat.st_mtime_ns
+  if do_skip:
+    verbose_print("Skipping identical:", dest_path)
+  else:
+    verbose_print("Copying:", src_path, "->", dest_path)
+    shutil.copy2(full_path, dest_path)
+
+# Copy function: overwrite destination files if stat is older than source
+def _copy_overwrite_older(src_path, dest_path):
+  if os.path.exists(dest_path):
+    src_stat = os.stat(src_path)
+    dst_stat = os.stat(dest_path)
+    do_skip = dst_stat.st_mtime_ns >= src_stat.st_mtime_ns
+  else:
+    do_skip = False
+  if do_skip:
+    verbose_print("Skipping newer:", dest_path)
+  else:
+    verbose_print("Copying:", src_path, "->", dest_path)
+    shutil.copy2(full_path, dest_path)
 
 # Copy a dependency. Takes care of debug files.
 def copy_dependency(src, dst, copy_func):
@@ -115,12 +150,20 @@ def copy_dependency(src, dst, copy_func):
     copy_func(src_path, dest_path)
 
 # Choose "copy" function
-if args.list_only:
-  # Print list of found dependencies
-  copy_func = _copy_print
-else:
-  copy_func = _copy_skip_existing
+# Default to printing list of found dependencies
+copy_func = _copy_print
+if not args.list_only:
   # Copy files to output dir
+  if args.existing.casefold() in ['skip', 's']:
+    copy_func = _copy_skip_existing
+  elif args.existing.casefold() in ['overwrite', 'o']:
+    copy_func = _copy_overwrite
+  elif args.existing.casefold() in ['overwrite-different', 'od']:
+    copy_func = _copy_overwrite_different
+  elif args.existing.casefold() in ['overwrite-older', 'oo']:
+    copy_func = _copy_overwrite_older
+  else:
+    print("Invalid value for 'existing':", args.existing, file=sys.stderr)
 
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
