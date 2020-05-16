@@ -57,7 +57,7 @@ parser.add_argument('-o', '--outdir', metavar='OUTPUT-DIR', dest='output_dir', h
 parser.add_argument('--recursive', action=ActionNoYes, default=True, help='whether to scan recursively for depencies (default: yes)')
 parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whether to collect debug info files (default: yes)')
 parser.add_argument('-e', '--existing', choices=['skip', 's', 'overwrite', 'o', 'overwrite-different', 'od', 'overwrite-older', 'oo'],
-                    default='skip', help='how to handle existing destination files')
+                    default='overwrite-different', help='how to handle existing destination files (default: %(default)s)')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
 parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
 
