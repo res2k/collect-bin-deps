@@ -72,10 +72,12 @@ def verbose_print(*print_args, **kwargs):
 def norm_basename(path):
   return os.path.normcase(os.path.basename(path))
 
-# Extract names of dependent DLLs from a PE file
-def extract_pefile_dependencies(pe_path):
+
+# Dependency extraction: names of dependent DLLs from a PE file
+def _extract_dependencies_pefile(pe_path):
   pe = pefile.PE(pe_path)
   return [os.fsdecode(entry.dll) for entry in pe.DIRECTORY_ENTRY_IMPORT]
+
 
 # Scan candidate directories, return found paths
 def search_dependency(dependency):
@@ -165,6 +167,8 @@ if not args.list_only:
   else:
     print("Invalid value for 'existing':", args.existing, file=sys.stderr)
 
+extract_dependencies = _extract_dependencies_pefile
+
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
 # dependency occurs multiple times.
@@ -176,7 +180,7 @@ for target in args.target:
     to_scan, *files_to_scan = files_to_scan
     # Collect list of dependencies
     verbose_print("Scanning:", to_scan)
-    for dep in extract_pefile_dependencies(to_scan):
+    for dep in extract_dependencies(to_scan):
       norm_name = norm_basename(dep)
       if norm_name in known_dependencies:
         # Already searched for, no need to check again
