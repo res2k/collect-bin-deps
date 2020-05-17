@@ -28,11 +28,14 @@ import filecmp
 import os
 import pefile
 import platform
+import re
 import shutil
 import sys
 
 # Detect file format by default
 default_format = 'auto'
+# Some behaviour is slightly different on Windows
+is_windows = platform.system() == 'Windows'
 
 # Based on: https://stackoverflow.com/a/20422915
 class ActionNoYes(argparse.Action):
@@ -63,6 +66,7 @@ parser.add_argument('--recursive', action=ActionNoYes, default=True, help='wheth
 parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whether to collect debug info files (default: yes)')
 parser.add_argument('-e', '--existing', choices=['skip', 's', 'overwrite', 'o', 'overwrite-different', 'od', 'overwrite-older', 'oo'],
                     default='overwrite-different', help='how to handle existing destination files (default: %(default)s)')
+parser.add_argument('-f', '--filter', metavar='REGEX', help='regular expression for dependency names to include and follow')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
 parser.add_argument('-F', '--format', choices=['auto', 'pe', 'elf'],
                     default=default_format, help='binary file format (default: %(default)s)')
@@ -220,6 +224,14 @@ if not args.list_only:
   else:
     print("Invalid value for 'existing':", args.existing, file=sys.stderr)
 
+filter_re = None
+if args.filter:
+  flags = 0
+  if is_windows:
+    # As normcase changes the filename case on Windows, ignore it in filter patterns
+    flags = flags | re.IGNORECASE
+  filter_re = re.compile(args.filter)
+
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
 # dependency occurs multiple times.
@@ -239,6 +251,8 @@ for target in args.target:
     verbose_print("Scanning:", to_scan)
     for dep in extract_dependencies(to_scan):
       norm_name = norm_basename(dep)
+      if filter_re and not filter_re.search(norm_name):
+          continue
       if norm_name in known_dependencies:
         # Already searched for, no need to check again
         continue
