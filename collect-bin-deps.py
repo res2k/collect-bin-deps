@@ -23,11 +23,19 @@
 #     3. This notice may not be removed or altered from any source distribution.
 
 import argparse
+import elftools.elf.elffile as elffile, elftools.elf.dynamic as elfdynamic
 import filecmp
 import os
 import pefile
+import platform
 import shutil
 import sys
+
+# Select default file format
+if platform.system() == 'Windows':
+  default_format = 'pe'
+else:
+  default_format = 'elf'
 
 # Based on: https://stackoverflow.com/a/20422915
 class ActionNoYes(argparse.Action):
@@ -59,6 +67,8 @@ parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whet
 parser.add_argument('-e', '--existing', choices=['skip', 's', 'overwrite', 'o', 'overwrite-different', 'od', 'overwrite-older', 'oo'],
                     default='overwrite-different', help='how to handle existing destination files (default: %(default)s)')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
+parser.add_argument('-F', '--format', choices=['pe', 'elf'],
+                    default=default_format, help='binary file format (default: %(default)s)')
 parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
 
 args = parser.parse_args()
@@ -77,6 +87,20 @@ def norm_basename(path):
 def _extract_dependencies_pefile(pe_path):
   pe = pefile.PE(pe_path)
   return [os.fsdecode(entry.dll) for entry in pe.DIRECTORY_ENTRY_IMPORT]
+
+# Dependency extraction: names of dependent DLLs from an ELF file
+def _extract_dependencies_elf(elf_path):
+  with open(elf_path, 'rb') as f:
+    dynamic_section = None
+    for sect in elffile.ELFFile(f).iter_sections():
+      if isinstance(sect, elfdynamic.DynamicSection):
+        dynamic_section = sect
+        break
+    if not dynamic_section:
+      verbose_print("No dynamic section found:", elf_path)
+      return []
+    # Collect values of all 'needed' tags in section
+    return [t for t in [getattr(t, 'needed', None) for t in dynamic_section.iter_tags()] if t != None]
 
 
 # Scan candidate directories, return found paths
@@ -167,7 +191,12 @@ if not args.list_only:
   else:
     print("Invalid value for 'existing':", args.existing, file=sys.stderr)
 
-extract_dependencies = _extract_dependencies_pefile
+if args.format.casefold() == 'pe':
+  extract_dependencies = _extract_dependencies_pefile
+elif args.format.casefold() == 'elf':
+  extract_dependencies = _extract_dependencies_elf
+else:
+  print("Invalid value for 'format':", args.format, file=sys.stderr)
 
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
