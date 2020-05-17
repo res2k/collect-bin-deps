@@ -31,11 +31,8 @@ import platform
 import shutil
 import sys
 
-# Select default file format
-if platform.system() == 'Windows':
-  default_format = 'pe'
-else:
-  default_format = 'elf'
+# Detect file format by default
+default_format = 'auto'
 
 # Based on: https://stackoverflow.com/a/20422915
 class ActionNoYes(argparse.Action):
@@ -67,7 +64,7 @@ parser.add_argument('--debug-info', action=ActionNoYes, default=True, help='whet
 parser.add_argument('-e', '--existing', choices=['skip', 's', 'overwrite', 'o', 'overwrite-different', 'od', 'overwrite-older', 'oo'],
                     default='overwrite-different', help='how to handle existing destination files (default: %(default)s)')
 parser.add_argument('-l', '--list-only', action='store_true', help='only print list of found dependencies')
-parser.add_argument('-F', '--format', choices=['pe', 'elf'],
+parser.add_argument('-F', '--format', choices=['auto', 'pe', 'elf'],
                     default=default_format, help='binary file format (default: %(default)s)')
 parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
 
@@ -81,6 +78,19 @@ def verbose_print(*print_args, **kwargs):
 # Helper: extract normalized basename
 def norm_basename(path):
   return os.path.normcase(os.path.basename(path))
+
+
+# Helper: detect file type, based on header bytes
+def _detect_file_type(path):
+  with open(path, 'rb') as f:
+    magic = f.read(4)
+    if len(magic) < 4: return None
+    # Check magic bytes
+    if magic[0:2] == b'MZ':
+      return 'pe'
+    elif magic[0:4] == b'\x7fELF':
+      return 'elf'
+  return None
 
 
 # Dependency extraction: names of dependent DLLs from a PE file
@@ -101,6 +111,25 @@ def _extract_dependencies_elf(elf_path):
       return []
     # Collect values of all 'needed' tags in section
     return [t for t in [getattr(t, 'needed', None) for t in dynamic_section.iter_tags()] if t != None]
+
+# Dependency extraction: dummy
+def _extract_dependencies_dummy(path):
+  return []
+
+# Return extraction function, based on format string
+def _get_extract_function(format, file):
+  if format.casefold() == 'auto':
+    format = _detect_file_type(file)
+    if not format:
+      # Unrecognized file type
+      return None
+  if format.casefold() == 'pe':
+    return _extract_dependencies_pefile
+  elif format.casefold() == 'elf':
+    return _extract_dependencies_elf
+  else:
+    assert False, "Invalid file format: " + format
+    return _extract_dependencies_dummy
 
 
 # Scan candidate directories, return found paths
@@ -191,18 +220,17 @@ if not args.list_only:
   else:
     print("Invalid value for 'existing':", args.existing, file=sys.stderr)
 
-if args.format.casefold() == 'pe':
-  extract_dependencies = _extract_dependencies_pefile
-elif args.format.casefold() == 'elf':
-  extract_dependencies = _extract_dependencies_elf
-else:
-  print("Invalid value for 'format':", args.format, file=sys.stderr)
-
 # dict of (normalized) dependency name to full path
 # Shared between targets so we don't have to repeatedly scan if the same
 # dependency occurs multiple times.
 known_dependencies = {}
 for target in args.target:
+  # Determine extraction method
+  extract_dependencies = _get_extract_function(args.format, target)
+  if not extract_dependencies:
+    print("File type not recognized:", target, file=sys.stderr)
+    continue
+
   # List of binaries to scan. Extend if recursive is enabled
   files_to_scan = [target]
   while len(files_to_scan) > 0:
