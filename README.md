@@ -5,7 +5,7 @@ an executable.
 
 Requirements
 ------------
-* `pefile` package
+* `pefile`, `pyelftools` package
 
 Usage
 -----
@@ -21,7 +21,7 @@ Notes
 
 Limitations
 -----------
-* Currently Windows only.
+* Currently supports Windows (PE) and Linux (ELF) binaries.
 
 Inspiration
 -----------
