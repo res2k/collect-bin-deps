@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="collect-bin-deps",
-    version="0.0.1",
+    version="0.0.2",
     author="Frank Richter",
     author_email="frank.richter@gmail.com",
     description="A tool to collect binary dependencies",
