@@ -26,5 +26,5 @@ Limitations
 Inspiration
 -----------
 vcpkg can provide this functionality out of the box, realized with a
-PowerShell script. collect-bin-deps.py qs written from scratch to provide the
+PowerShell script. collect-bin-deps.py was written from scratch to provide the
 same functionality.
